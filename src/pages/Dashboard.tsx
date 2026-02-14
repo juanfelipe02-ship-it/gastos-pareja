@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { useStore } from '@/store/useStore'
 import { useExpenses } from '@/hooks/useExpenses'
 import { useSettlements } from '@/hooks/useSettlements'
+import { ExpenseReminder } from '@/components/dashboard/ExpenseReminder'
 import { formatCurrency, calculateBalance, getMonthRange, formatMonthYear, cn } from '@/lib/utils'
 
 export function Dashboard() {
@@ -99,6 +100,15 @@ export function Dashboard() {
           {formatMonthYear(now)}
         </h1>
       </div>
+
+      {/* Reminder */}
+      <ExpenseReminder
+        expenses={expenses}
+        onAddExpense={() => {
+          // Trigger the FAB - dispatch a custom event
+          window.dispatchEvent(new CustomEvent('open-expense-modal'))
+        }}
+      />
 
       {/* Balance card */}
       <div

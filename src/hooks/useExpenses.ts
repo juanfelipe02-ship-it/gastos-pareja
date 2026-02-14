@@ -56,6 +56,7 @@ export function useExpenses() {
     split_type: SplitType
     split_percentage?: number
     date: string
+    receipt_url?: string
   }) {
     if (!user?.household_id) return
 
@@ -66,6 +67,7 @@ export function useExpenses() {
       household_id: user.household_id,
       split_percentage: data.split_percentage ?? 50,
       description: data.description || null,
+      receipt_url: data.receipt_url || null,
     }
 
     // Optimistic update

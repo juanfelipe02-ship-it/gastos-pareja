@@ -1,8 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ExpenseModal } from '@/components/expenses/ExpenseModal'
 
 export function FAB() {
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    function handleOpen() { setOpen(true) }
+    window.addEventListener('open-expense-modal', handleOpen)
+    return () => window.removeEventListener('open-expense-modal', handleOpen)
+  }, [])
 
   return (
     <>

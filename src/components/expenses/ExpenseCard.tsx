@@ -95,6 +95,20 @@ export function ExpenseCard({ expense, onEdit, onDelete }: Props) {
           </p>
         </div>
 
+        {/* Receipt indicator */}
+        {expense.receipt_url && (
+          <a
+            href={expense.receipt_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-lg flex-shrink-0"
+            title="Ver recibo"
+          >
+            🧾
+          </a>
+        )}
+
         {/* Amount */}
         <p className="font-semibold text-sm text-gray-900 dark:text-white tabular-nums">
           {formatCurrency(expense.amount, currency)}

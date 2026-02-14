@@ -30,6 +30,7 @@ export interface Expense {
   date: string
   created_by: string
   household_id: string
+  receipt_url: string | null
   created_at: string
   // Joined fields
   category?: Category

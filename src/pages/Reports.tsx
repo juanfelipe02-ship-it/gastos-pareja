@@ -12,6 +12,7 @@ import {
 } from 'recharts'
 import { useStore } from '@/store/useStore'
 import { useExpenses } from '@/hooks/useExpenses'
+import { MonthlyInsights } from '@/components/reports/MonthlyInsights'
 import { formatCurrency, formatMonthYear } from '@/lib/utils'
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -216,6 +217,11 @@ export function Reports() {
             <span className="text-xs text-gray-500">{partner?.name || 'Pareja'}</span>
           </div>
         </div>
+      </div>
+
+      {/* Monthly Insights */}
+      <div className="card p-4 mb-4">
+        <MonthlyInsights expenses={expenses} selectedMonth={selectedMonth} />
       </div>
 
       {/* Export */}
