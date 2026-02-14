@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply font-sans text-gray-900 dark:text-gray-100 antialiased;
+    overscroll-behavior: none;
+  }
+
+  input, button, select, textarea {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700;
+  }
+
+  .btn-primary {
+    @apply bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-semibold
+           py-3 px-6 rounded-2xl transition-all duration-150 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600
+           text-gray-700 dark:text-gray-200 font-medium
+           py-3 px-6 rounded-2xl transition-all duration-150 active:scale-95;
+  }
+
+  .input {
+    @apply w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600
+           rounded-2xl px-4 py-3 text-gray-900 dark:text-white
+           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent
+           transition-all duration-150;
+  }
+
+  .bottom-sheet {
+    @apply fixed inset-0 z-50 flex flex-col justify-end;
+  }
+
+  .bottom-sheet-overlay {
+    @apply absolute inset-0 bg-black/40 backdrop-blur-sm;
+  }
+
+  .bottom-sheet-content {
+    @apply relative bg-white dark:bg-gray-800 rounded-t-3xl max-h-[90vh] overflow-y-auto
+           animate-slide-up pb-safe;
+  }
+
+  .numpad-btn {
+    @apply flex items-center justify-center text-2xl font-semibold
+           h-16 rounded-2xl bg-gray-50 dark:bg-gray-700
+           hover:bg-gray-100 dark:hover:bg-gray-600
+           active:bg-gray-200 dark:active:bg-gray-500
+           transition-all duration-100 active:scale-95
+           select-none;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+
+  .mb-safe {
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Hide scrollbar but allow scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
