@@ -179,29 +179,16 @@ export function useAuth() {
   async function joinPartner(inviteCode: string) {
     if (!user) throw new Error('Must be logged in')
 
-    const { data: partnerProfile, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('invite_code', inviteCode.toUpperCase())
-      .single()
+    // Use server-side function to bypass RLS
+    const { data, error } = await supabase.rpc('link_partner', {
+      invite_code_input: inviteCode.toUpperCase(),
+    })
 
-    if (error || !partnerProfile) throw new Error('Código inválido')
-    if (partnerProfile.id === user.id) throw new Error('No puedes vincularte contigo mismo')
-    if (partnerProfile.partner_id) throw new Error('Esta persona ya tiene pareja vinculada')
+    if (error) throw new Error(error.message)
+    if (data?.error) throw new Error(data.error)
 
-    await supabase
-      .from('profiles')
-      .update({
-        partner_id: partnerProfile.id,
-        household_id: partnerProfile.household_id,
-      })
-      .eq('id', user.id)
-
-    await supabase
-      .from('profiles')
-      .update({ partner_id: user.id })
-      .eq('id', partnerProfile.id)
-
+    // Reload profile with new household
+    loadingRef.current = false
     await handleSession(user.id, user.email || '', user.name)
   }
 
