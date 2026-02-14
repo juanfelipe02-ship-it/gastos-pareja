@@ -24,8 +24,8 @@ export function useSettlements() {
     loadSettlements()
   }, [loadSettlements])
 
-  async function createSettlement(amount: number, paidBy: string, paidTo: string) {
-    if (!user?.household_id) return
+  async function createSettlement(amount: number, paidBy: string, paidTo: string): Promise<void> {
+    if (!user?.household_id) throw new Error('No household_id')
 
     const settlement = {
       id: crypto.randomUUID(),
@@ -40,7 +40,9 @@ export function useSettlements() {
 
     const { error } = await supabase.from('settlements').insert(settlement)
     if (error) {
+      console.error('Settlement insert error:', error)
       await loadSettlements()
+      throw error
     }
   }
 

@@ -11,6 +11,8 @@ export function Dashboard() {
   const { settlements, createSettlement } = useSettlements()
   const [showSettle, setShowSettle] = useState(false)
   const [settleAmount, setSettleAmount] = useState('')
+  const [settleError, setSettleError] = useState('')
+  const [settling, setSettling] = useState(false)
 
   const now = new Date()
   const { start, end } = getMonthRange(now)
@@ -63,15 +65,29 @@ export function Dashboard() {
 
   async function handleSettle() {
     const amount = parseFloat(settleAmount)
-    if (!amount || !user || !partner) return
+    if (!amount || !user) return
+    setSettleError('')
+    setSettling(true)
 
-    if (balance > 0) {
-      await createSettlement(amount, partner.id, user.id)
-    } else {
-      await createSettlement(amount, user.id, partner.id)
+    try {
+      if (partner) {
+        // With partner linked
+        if (balance > 0) {
+          await createSettlement(amount, partner.id, user.id)
+        } else {
+          await createSettlement(amount, user.id, partner.id)
+        }
+      } else {
+        // No partner linked - settle with self as both parties (solo mode)
+        await createSettlement(amount, user.id, user.id)
+      }
+      setShowSettle(false)
+      setSettleAmount('')
+    } catch (err: any) {
+      setSettleError(err?.message || 'Error al saldar')
+    } finally {
+      setSettling(false)
     }
-    setShowSettle(false)
-    setSettleAmount('')
   }
 
   return (
@@ -279,22 +295,25 @@ export function Dashboard() {
               onChange={(e) => setSettleAmount(e.target.value)}
               className="input mb-4 text-lg text-center"
             />
+            {settleError && (
+              <p className="text-red-500 text-sm text-center mb-3 animate-fade-in">{settleError}</p>
+            )}
             <div className="flex gap-2">
               <button
-                onClick={() => { setShowSettle(false); setSettleAmount('') }}
+                onClick={() => { setShowSettle(false); setSettleAmount(''); setSettleError('') }}
                 className="flex-1 btn-secondary"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSettle}
-                disabled={!settleAmount || parseFloat(settleAmount) <= 0}
+                disabled={!settleAmount || parseFloat(settleAmount) <= 0 || settling}
                 className={cn(
                   'flex-1 btn-primary',
-                  (!settleAmount || parseFloat(settleAmount) <= 0) && 'opacity-40'
+                  (!settleAmount || parseFloat(settleAmount) <= 0 || settling) && 'opacity-40'
                 )}
               >
-                Confirmar pago
+                {settling ? 'Guardando...' : 'Confirmar pago'}
               </button>
             </div>
           </div>
