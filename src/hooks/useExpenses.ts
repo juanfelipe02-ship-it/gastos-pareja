@@ -60,24 +60,33 @@ export function useExpenses() {
   }) {
     if (!user?.household_id) return
 
+    const id = crypto.randomUUID()
     const expense = {
-      ...data,
-      id: crypto.randomUUID(),
-      created_by: user.id,
-      household_id: user.household_id,
+      id,
+      amount: data.amount,
+      category_id: data.category_id,
+      paid_by: data.paid_by,
+      split_type: data.split_type,
       split_percentage: data.split_percentage ?? 50,
+      date: data.date,
       description: data.description || null,
       receipt_url: data.receipt_url || null,
+      created_by: user.id,
+      household_id: user.household_id,
     }
 
+    // For the DB insert, omit receipt_url if null (column may not exist yet)
+    const { receipt_url, ...dbExpense } = expense
+    const insertData = receipt_url ? expense : dbExpense
+
     // Optimistic update
-    addExpense(expense as Expense)
+    addExpense(expense as unknown as Expense)
 
     try {
-      const { error } = await supabase.from('expenses').insert(expense)
+      const { error } = await supabase.from('expenses').insert(insertData)
       if (error) {
-        removeExpense(expense.id)
-        addToQueue({ table: 'expenses', type: 'insert', data: expense })
+        removeExpense(id)
+        addToQueue({ table: 'expenses', type: 'insert', data: insertData })
         throw error
       }
     } catch {
