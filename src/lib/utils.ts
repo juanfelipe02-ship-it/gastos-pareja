@@ -30,36 +30,40 @@ export function calculateOwed(
   expense: Expense,
   currentUserId: string
 ): number {
-  const { amount, paid_by, split_type, split_percentage } = expense
+  const { amount, paid_by, split_type, split_percentage, created_by } = expense
 
-  const isMine = paid_by === currentUserId
+  const iPaid = paid_by === currentUserId
+  const iCreated = created_by === currentUserId
 
-  // Returns positive = partner owes me, negative = I owe partner
+  // Determine my share of this expense based on who created it
+  // "solo_yo"/"solo_pareja"/split_percentage are relative to the creator
+  let myShare: number
   switch (split_type) {
     case '50/50':
-      // Whoever paid, the other owes half
-      return isMine ? amount / 2 : -(amount / 2)
+      myShare = amount / 2
+      break
     case 'solo_yo':
-      // This expense is 100% mine
-      // If I paid: nobody owes anything (0)
-      // If partner paid for me: I owe them the full amount
-      return isMine ? 0 : -amount
+      // Creator's expense — creator pays 100%, partner pays 0%
+      myShare = iCreated ? amount : 0
+      break
     case 'solo_pareja':
-      // This expense is 100% partner's
-      // If partner paid: nobody owes anything (0)
-      // If I paid for them: they owe me the full amount
-      return isMine ? amount : 0
-    case 'custom': {
-      // split_percentage = my share %
-      const myShare = amount * split_percentage / 100
-      const partnerShare = amount - myShare
-      // If I paid: partner owes me their share
-      // If partner paid: I owe them my share
-      return isMine ? partnerShare : -myShare
-    }
+      // Creator's partner's expense — partner pays 100%, creator pays 0%
+      myShare = iCreated ? 0 : amount
+      break
+    case 'custom':
+      // split_percentage = creator's share %
+      myShare = iCreated
+        ? amount * split_percentage / 100
+        : amount * (100 - split_percentage) / 100
+      break
     default:
-      return 0
+      myShare = amount / 2
   }
+
+  // Positive = partner owes me, negative = I owe partner
+  // If I paid: the other person owes me their share (total - myShare)
+  // If they paid: I owe them my share
+  return iPaid ? (amount - myShare) : -myShare
 }
 
 export function calculateBalance(
@@ -75,9 +79,11 @@ export function calculateBalance(
 
   for (const settlement of settlements) {
     if (settlement.paid_by === currentUserId) {
-      balance -= settlement.amount
-    } else {
+      // I paid someone → my debt decreases → balance goes up
       balance += settlement.amount
+    } else {
+      // Someone paid me → their debt decreases → balance goes down
+      balance -= settlement.amount
     }
   }
 

@@ -30,6 +30,10 @@ interface AppState {
   setCurrency: (currency: string) => void
   darkMode: boolean
   toggleDarkMode: () => void
+
+  // Onboarding
+  onboardingDone: boolean
+  setOnboardingDone: (done: boolean) => void
 }
 
 export const useStore = create<AppState>()(
@@ -69,6 +73,9 @@ export const useStore = create<AppState>()(
       setCurrency: (currency) => set({ currency }),
       darkMode: false,
       toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+
+      onboardingDone: false,
+      setOnboardingDone: (done) => set({ onboardingDone: done }),
     }),
     {
       name: 'gastos-pareja-storage',
@@ -80,6 +87,7 @@ export const useStore = create<AppState>()(
         categories: state.categories,
         expenses: state.expenses,
         settlements: state.settlements,
+        onboardingDone: state.onboardingDone,
       }),
     }
   )

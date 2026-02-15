@@ -4,7 +4,7 @@ import { useStore } from '@/store/useStore'
 import type { Profile } from '@/types/database'
 
 export function useAuth() {
-  const { user, setUser, partner, setPartner, setCategories } = useStore()
+  const { user, setUser, partner, setPartner, setCategories, onboardingDone, setOnboardingDone } = useStore()
   const [loading, setLoading] = useState(true)
   const loadingRef = useRef(false)
 
@@ -78,6 +78,22 @@ export function useAuth() {
 
         if (categories && categories.length > 0) {
           setCategories(categories)
+        }
+
+        // Auto-complete onboarding for existing users with expenses
+        if (!onboardingDone) {
+          if (profile.partner_id) {
+            setOnboardingDone(true)
+          } else {
+            const { count } = await supabase
+              .from('expenses')
+              .select('*', { count: 'exact', head: true })
+              .eq('household_id', profile.household_id)
+
+            if (count && count > 0) {
+              setOnboardingDone(true)
+            }
+          }
         }
       }
     } catch (err) {
@@ -173,6 +189,7 @@ export function useAuth() {
     await supabase.auth.signOut()
     setUser(null)
     setPartner(null)
+    setOnboardingDone(false)
     localStorage.removeItem('gastos-pareja-storage')
   }
 

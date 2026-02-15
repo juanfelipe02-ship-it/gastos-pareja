@@ -5,7 +5,7 @@ import { addToQueue } from '@/lib/offline-queue'
 import type { Expense, SplitType } from '@/types/database'
 
 export function useExpenses() {
-  const { user, expenses, setExpenses, addExpense, updateExpense, removeExpense } = useStore()
+  const { user, expenses, setExpenses, addExpense, updateExpense, removeExpense, onboardingDone, setOnboardingDone } = useStore()
 
   const loadExpenses = useCallback(async () => {
     if (!user?.household_id) return
@@ -94,6 +94,10 @@ export function useExpenses() {
     }
 
     await loadExpenses()
+
+    if (!onboardingDone) {
+      setOnboardingDone(true)
+    }
   }
 
   async function editExpense(id: string, data: Partial<Expense>) {

@@ -9,6 +9,7 @@ const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default:
 const Expenses = lazy(() => import('@/pages/Expenses').then((m) => ({ default: m.Expenses })))
 const Reports = lazy(() => import('@/pages/Reports').then((m) => ({ default: m.Reports })))
 const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })))
+const Onboarding = lazy(() => import('@/components/onboarding/Onboarding').then((m) => ({ default: m.Onboarding })))
 
 function PageLoader() {
   return (
@@ -20,7 +21,7 @@ function PageLoader() {
 
 export default function App() {
   const { user, loading } = useAuth()
-  const { darkMode } = useStore()
+  const { darkMode, onboardingDone } = useStore()
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -39,6 +40,14 @@ export default function App() {
 
   if (!user) {
     return <Auth />
+  }
+
+  if (!onboardingDone) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Onboarding />
+      </Suspense>
+    )
   }
 
   return (
