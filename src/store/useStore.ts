@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Profile, Category, Expense, Settlement } from '@/types/database'
+import type { Profile, Category, Expense, Settlement, Budget } from '@/types/database'
 
 interface AppState {
   // Auth
@@ -24,6 +24,12 @@ interface AppState {
   settlements: Settlement[]
   setSettlements: (settlements: Settlement[]) => void
   addSettlement: (settlement: Settlement) => void
+
+  // Budgets
+  budgets: Budget[]
+  setBudgets: (budgets: Budget[]) => void
+  upsertBudget: (budget: Budget) => void
+  removeBudget: (id: string) => void
 
   // UI
   currency: string
@@ -69,6 +75,25 @@ export const useStore = create<AppState>()(
           settlements: [settlement, ...state.settlements],
         })),
 
+      budgets: [],
+      setBudgets: (budgets) => set({ budgets }),
+      upsertBudget: (budget) =>
+        set((state) => {
+          const idx = state.budgets.findIndex(
+            (b) => b.category_id === budget.category_id && b.month === budget.month
+          )
+          if (idx >= 0) {
+            const updated = [...state.budgets]
+            updated[idx] = budget
+            return { budgets: updated }
+          }
+          return { budgets: [...state.budgets, budget] }
+        }),
+      removeBudget: (id) =>
+        set((state) => ({
+          budgets: state.budgets.filter((b) => b.id !== id),
+        })),
+
       currency: 'COP',
       setCurrency: (currency) => set({ currency }),
       darkMode: false,
@@ -87,6 +112,7 @@ export const useStore = create<AppState>()(
         categories: state.categories,
         expenses: state.expenses,
         settlements: state.settlements,
+        budgets: state.budgets,
         onboardingDone: state.onboardingDone,
       }),
     }

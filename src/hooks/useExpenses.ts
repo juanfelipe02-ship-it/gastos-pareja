@@ -103,10 +103,13 @@ export function useExpenses() {
   async function editExpense(id: string, data: Partial<Expense>) {
     updateExpense(id, data)
 
+    // Strip joined/read-only fields before sending to Supabase
+    const { category, payer, created_at, id: _id, ...updateData } = data as Record<string, unknown>
+
     try {
       const { error } = await supabase
         .from('expenses')
-        .update(data)
+        .update(updateData)
         .eq('id', id)
       if (error) throw error
     } catch {

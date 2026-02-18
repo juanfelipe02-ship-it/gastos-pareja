@@ -12,15 +12,19 @@ import {
 } from 'recharts'
 import { useStore } from '@/store/useStore'
 import { useExpenses } from '@/hooks/useExpenses'
+import { useBudgets } from '@/hooks/useBudgets'
 import { MonthlyInsights } from '@/components/reports/MonthlyInsights'
-import { formatCurrency, formatMonthYear } from '@/lib/utils'
+import { BudgetModal } from '@/components/reports/BudgetModal'
+import { formatCurrency, formatMonthYear, cn } from '@/lib/utils'
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export function Reports() {
   const { categories, currency, user, partner } = useStore()
   const { expenses } = useExpenses()
+  const { getBudgetsForMonth, getTotalBudget } = useBudgets()
   const [selectedMonth, setSelectedMonth] = useState(new Date())
+  const [showBudgetModal, setShowBudgetModal] = useState(false)
 
   const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
   const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
@@ -71,6 +75,29 @@ export function Reports() {
 
   const totalMonth = monthExpenses.reduce((sum, e) => sum + e.amount, 0)
 
+  const monthBudgets = getBudgetsForMonth(selectedMonth)
+  const totalBudget = getTotalBudget(selectedMonth)
+
+  const budgetVsActual = useMemo(() => {
+    return categories
+      .map((cat) => {
+        const actual = monthExpenses
+          .filter((e) => e.category_id === cat.id)
+          .reduce((sum, e) => sum + e.amount, 0)
+        const budget = monthBudgets.find((b) => b.category_id === cat.id)
+        return {
+          categoryId: cat.id,
+          name: cat.name,
+          icon: cat.icon,
+          color: cat.color,
+          actual,
+          budget: budget?.amount || 0,
+          percentage: budget?.amount ? Math.round((actual / budget.amount) * 100) : 0,
+        }
+      })
+      .filter((item) => item.actual > 0 || item.budget > 0)
+  }, [categories, monthExpenses, monthBudgets])
+
   function exportCSV() {
     const header = 'Fecha,Descripción,Categoría,Monto,Pagó,División\n'
     const rows = monthExpenses
@@ -117,7 +144,87 @@ export function Reports() {
         <p className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
           {formatCurrency(totalMonth, currency)}
         </p>
+        {totalBudget > 0 && (
+          <>
+            <p className="text-xs text-gray-400 mt-1">
+              de {formatCurrency(totalBudget, currency)} presupuestado
+            </p>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+              <div
+                className={cn(
+                  'h-2 rounded-full transition-all',
+                  totalMonth / totalBudget > 1
+                    ? 'bg-red-500'
+                    : totalMonth / totalBudget > 0.8
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                )}
+                style={{ width: `${Math.min(100, (totalMonth / totalBudget) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs mt-1 font-medium tabular-nums" style={{
+              color: totalMonth / totalBudget > 1 ? '#ef4444' : totalMonth / totalBudget > 0.8 ? '#f59e0b' : '#10b981'
+            }}>
+              {Math.round((totalMonth / totalBudget) * 100)}% ejecutado
+            </p>
+          </>
+        )}
       </div>
+
+      {/* Budget vs Actual */}
+      {monthBudgets.length > 0 ? (
+        <div className="card p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Presupuesto vs Real
+            </h3>
+            <button
+              onClick={() => setShowBudgetModal(true)}
+              className="text-xs text-emerald-500 font-medium"
+            >
+              Editar
+            </button>
+          </div>
+          <div className="space-y-3">
+            {budgetVsActual
+              .filter((item) => item.budget > 0)
+              .map((item) => (
+                <div key={item.categoryId}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-600 dark:text-gray-300">
+                      {item.icon} {item.name}
+                    </span>
+                    <span className="text-xs tabular-nums text-gray-500">
+                      {formatCurrency(item.actual, currency)} / {formatCurrency(item.budget, currency)}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                    <div
+                      className={cn(
+                        'h-1.5 rounded-full transition-all',
+                        item.percentage > 100
+                          ? 'bg-red-500'
+                          : item.percentage > 80
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      )}
+                      style={{ width: `${Math.min(100, item.percentage)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowBudgetModal(true)}
+          className="w-full card p-4 mb-4 text-center text-sm text-gray-400
+                     border-2 border-dashed border-gray-200 dark:border-gray-600
+                     hover:border-emerald-400 hover:text-emerald-500 transition-colors"
+        >
+          📊 Definir presupuesto para este mes
+        </button>
+      )}
 
       {/* Category breakdown */}
       {categoryData.length > 0 && (
@@ -221,7 +328,7 @@ export function Reports() {
 
       {/* Monthly Insights */}
       <div className="card p-4 mb-4">
-        <MonthlyInsights expenses={expenses} selectedMonth={selectedMonth} />
+        <MonthlyInsights expenses={expenses} selectedMonth={selectedMonth} budgets={monthBudgets} />
       </div>
 
       {/* Export */}
@@ -232,6 +339,10 @@ export function Reports() {
       >
         📥 Exportar CSV
       </button>
+
+      {showBudgetModal && (
+        <BudgetModal month={selectedMonth} onClose={() => setShowBudgetModal(false)} />
+      )}
     </div>
   )
 }

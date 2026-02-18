@@ -2,11 +2,12 @@ import { useMemo } from 'react'
 import { useStore } from '@/store/useStore'
 import { formatCurrency, cn } from '@/lib/utils'
 import { subMonths, startOfMonth, endOfMonth, format } from 'date-fns'
-import type { Expense, Category } from '@/types/database'
+import type { Expense, Category, Budget } from '@/types/database'
 
 interface Props {
   expenses: Expense[]
   selectedMonth: Date
+  budgets?: Budget[]
 }
 
 interface Insight {
@@ -16,7 +17,7 @@ interface Insight {
   description: string
 }
 
-export function MonthlyInsights({ expenses, selectedMonth }: Props) {
+export function MonthlyInsights({ expenses, selectedMonth, budgets }: Props) {
   const { categories, currency, user, partner } = useStore()
 
   const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
@@ -150,7 +151,76 @@ export function MonthlyInsights({ expenses, selectedMonth }: Props) {
     const today = new Date()
     const isCurrentMonth = selectedMonth.getMonth() === today.getMonth() && selectedMonth.getFullYear() === today.getFullYear()
 
-    if (isCurrentMonth && today.getDate() < 25) {
+    // 4b. Budget-aware insights
+    const totalBudget = budgets && budgets.length > 0
+      ? budgets.reduce((s, b) => s + b.amount, 0)
+      : 0
+
+    if (totalBudget > 0 && isCurrentMonth && today.getDate() < 25) {
+      // Budget pacing
+      const pctUsed = Math.round((totalCurrent / totalBudget) * 100)
+      const expectedPct = Math.round((today.getDate() / daysInMonth) * 100)
+
+      if (pctUsed > 100) {
+        results.push({
+          type: 'warning',
+          icon: '🚨',
+          title: `Presupuesto excedido: ${pctUsed}%`,
+          description: `Gastaron ${formatCurrency(totalCurrent, currency)} de ${formatCurrency(totalBudget, currency)} presupuestado. Excedieron por ${formatCurrency(totalCurrent - totalBudget, currency)}.`,
+        })
+      } else if (pctUsed > expectedPct + 10) {
+        results.push({
+          type: 'warning',
+          icon: '⚠️',
+          title: `Ritmo alto: ${pctUsed}% del presupuesto`,
+          description: `Al día ${today.getDate()} deberían estar en ~${expectedPct}% pero van en ${pctUsed}%. Moderen el gasto.`,
+        })
+      } else {
+        results.push({
+          type: 'success',
+          icon: '💪',
+          title: `Buen ritmo: ${pctUsed}% del presupuesto`,
+          description: `Van bien. Al día ${today.getDate()} esperado ~${expectedPct}%, llevan ${pctUsed}%.`,
+        })
+      }
+
+      // Projection vs budget
+      if (projected > totalBudget) {
+        const dailyReduction = Math.ceil((projected - totalBudget) / (daysInMonth - today.getDate()))
+        results.push({
+          type: 'warning',
+          icon: '🔮',
+          title: `Proyección: ${formatCurrency(projected, currency)}`,
+          description: `Excederían el presupuesto de ${formatCurrency(totalBudget, currency)} por ${formatCurrency(projected - totalBudget, currency)}. Reduzcan ${formatCurrency(dailyReduction, currency)}/día para ajustarse.`,
+        })
+      } else {
+        results.push({
+          type: 'success',
+          icon: '🔮',
+          title: `Proyección: ${formatCurrency(projected, currency)}`,
+          description: `Dentro del presupuesto de ${formatCurrency(totalBudget, currency)} con ${formatCurrency(totalBudget - projected, currency)} de margen.`,
+        })
+      }
+
+      // Categories over budget
+      if (budgets) {
+        for (const budget of budgets) {
+          const cat = categories.find((c) => c.id === budget.category_id)
+          const actual = currentExpenses
+            .filter((e) => e.category_id === budget.category_id)
+            .reduce((s, e) => s + e.amount, 0)
+
+          if (actual > budget.amount && cat) {
+            results.push({
+              type: 'warning',
+              icon: cat.icon,
+              title: `${cat.name}: excedido ${Math.round(((actual - budget.amount) / budget.amount) * 100)}%`,
+              description: `Presupuesto: ${formatCurrency(budget.amount, currency)}, gastado: ${formatCurrency(actual, currency)}.`,
+            })
+          }
+        }
+      }
+    } else if (isCurrentMonth && today.getDate() < 25 && totalBudget === 0) {
       results.push({
         type: 'info',
         icon: '🔮',

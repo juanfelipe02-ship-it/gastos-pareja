@@ -50,6 +50,16 @@ export interface Settlement {
   receiver?: Profile
 }
 
+export interface Budget {
+  id: string
+  category_id: string
+  household_id: string
+  month: string
+  amount: number
+  created_at: string
+  category?: Category
+}
+
 export const DEFAULT_CATEGORIES: Omit<Category, 'id' | 'household_id' | 'created_at'>[] = [
   { name: 'Mercado', icon: '🛒', color: '#10b981' },
   { name: 'Restaurantes', icon: '🍽️', color: '#f59e0b' },

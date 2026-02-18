@@ -3,28 +3,32 @@ import { useStore } from '@/store/useStore'
 import { useExpenses } from '@/hooks/useExpenses'
 import { useReceipts } from '@/hooks/useReceipts'
 import { formatCurrency, cn } from '@/lib/utils'
-import type { SplitType } from '@/types/database'
+import type { Expense, SplitType } from '@/types/database'
 
 interface Props {
   onClose: () => void
+  expense?: Expense
 }
 
 type Step = 'amount' | 'details'
 
-export function ExpenseModal({ onClose }: Props) {
+export function ExpenseModal({ onClose, expense: editingExpense }: Props) {
   const { user, partner, categories, currency } = useStore()
-  const { createExpense } = useExpenses()
+  const { createExpense, editExpense } = useExpenses()
   const { uploadReceipt, uploading } = useReceipts()
 
-  const [step, setStep] = useState<Step>('amount')
-  const [amount, setAmount] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [paidBy, setPaidBy] = useState(user?.id || '')
-  const [splitType, setSplitType] = useState<SplitType>('50/50')
-  const [splitPercentage, setSplitPercentage] = useState(50)
-  const [description, setDescription] = useState('')
+  const isEditing = !!editingExpense
+
+  const [step, setStep] = useState<Step>(isEditing ? 'details' : 'amount')
+  const [amount, setAmount] = useState(isEditing ? String(editingExpense.amount) : '')
+  const [categoryId, setCategoryId] = useState(isEditing ? editingExpense.category_id : '')
+  const [paidBy, setPaidBy] = useState(isEditing ? editingExpense.paid_by : (user?.id || ''))
+  const [splitType, setSplitType] = useState<SplitType>(isEditing ? editingExpense.split_type : '50/50')
+  const [splitPercentage, setSplitPercentage] = useState(isEditing ? editingExpense.split_percentage : 50)
+  const [description, setDescription] = useState(isEditing ? (editingExpense.description || '') : '')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(isEditing ? editingExpense.receipt_url : null)
+  const [receiptRemoved, setReceiptRemoved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -59,21 +63,36 @@ export function ExpenseModal({ onClose }: Props) {
 
     setSaving(true)
     try {
-      let receiptUrl: string | null = null
+      let receiptUrl: string | null = isEditing ? (editingExpense.receipt_url || null) : null
+
       if (receiptFile) {
         receiptUrl = await uploadReceipt(receiptFile)
+      } else if (receiptRemoved) {
+        receiptUrl = null
       }
 
-      await createExpense({
-        amount: numericAmount,
-        description: description || undefined,
-        category_id: categoryId,
-        paid_by: paidBy,
-        split_type: splitType,
-        split_percentage: splitType === 'custom' ? splitPercentage : 50,
-        date: new Date().toISOString().split('T')[0],
-        receipt_url: receiptUrl || undefined,
-      })
+      if (isEditing) {
+        await editExpense(editingExpense.id, {
+          amount: numericAmount,
+          description: description || null,
+          category_id: categoryId,
+          paid_by: paidBy,
+          split_type: splitType,
+          split_percentage: splitType === 'custom' ? splitPercentage : 50,
+          receipt_url: receiptUrl,
+        })
+      } else {
+        await createExpense({
+          amount: numericAmount,
+          description: description || undefined,
+          category_id: categoryId,
+          paid_by: paidBy,
+          split_type: splitType,
+          split_percentage: splitType === 'custom' ? splitPercentage : 50,
+          date: new Date().toISOString().split('T')[0],
+          receipt_url: receiptUrl || undefined,
+        })
+      }
       setSaved(true)
       setTimeout(() => onClose(), 800)
     } catch (err) {
@@ -97,7 +116,7 @@ export function ExpenseModal({ onClose }: Props) {
           <div className="flex flex-col items-center justify-center py-16">
             <div className="animate-check text-6xl mb-4">✅</div>
             <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
-              ¡Gasto guardado!
+              {isEditing ? '¡Gasto actualizado!' : '¡Gasto guardado!'}
             </p>
           </div>
         ) : step === 'amount' ? (
@@ -107,9 +126,11 @@ export function ExpenseModal({ onClose }: Props) {
             currency={currency}
             onNumpad={handleNumpad}
             onNext={handleNext}
+            isEditing={isEditing}
           />
         ) : (
           <DetailsStep
+            isEditing={isEditing}
             categories={categories}
             categoryId={categoryId}
             setCategoryId={setCategoryId}
@@ -123,7 +144,7 @@ export function ExpenseModal({ onClose }: Props) {
             setDescription={setDescription}
             receiptPreview={receiptPreview}
             onReceiptSelect={handleReceiptSelect}
-            onReceiptRemove={() => { setReceiptFile(null); setReceiptPreview(null) }}
+            onReceiptRemove={() => { setReceiptFile(null); setReceiptPreview(null); setReceiptRemoved(true) }}
             uploading={uploading}
             userId={user?.id || ''}
             partnerName={partner?.name || 'Pareja'}
@@ -146,17 +167,19 @@ function AmountStep({
   currency,
   onNumpad,
   onNext,
+  isEditing,
 }: {
   amount: string
   numericAmount: number
   currency: string
   onNumpad: (key: string) => void
   onNext: () => void
+  isEditing?: boolean
 }) {
   return (
     <div className="px-4 pb-4">
       <h2 className="text-lg font-semibold text-center text-gray-700 dark:text-gray-200 mb-4">
-        Nuevo gasto
+        {isEditing ? 'Editar gasto' : 'Nuevo gasto'}
       </h2>
 
       <div className="text-center mb-6">
@@ -194,6 +217,7 @@ function AmountStep({
 }
 
 function DetailsStep({
+  isEditing,
   categories,
   categoryId,
   setCategoryId,
@@ -218,6 +242,7 @@ function DetailsStep({
   onSave,
   saving,
 }: {
+  isEditing?: boolean
   categories: { id: string; name: string; icon: string; color: string }[]
   categoryId: string
   setCategoryId: (id: string) => void
@@ -422,7 +447,7 @@ function DetailsStep({
             {uploading ? 'Subiendo recibo...' : 'Guardando...'}
           </span>
         ) : (
-          'Guardar'
+          isEditing ? 'Actualizar' : 'Guardar'
         )}
       </button>
     </div>

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useStore } from '@/store/useStore'
 import { useExpenses } from '@/hooks/useExpenses'
 import { ExpenseCard } from '@/components/expenses/ExpenseCard'
+import { ExpenseModal } from '@/components/expenses/ExpenseModal'
 import { formatMonthYear, formatCurrency } from '@/lib/utils'
 import { startOfMonth, endOfMonth, addMonths, subMonths, format } from 'date-fns'
 import type { Expense } from '@/types/database'
@@ -13,6 +14,7 @@ export function Expenses() {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [filterPaidBy, setFilterPaidBy] = useState<string>('')
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
 
   const start = format(startOfMonth(currentMonth), 'yyyy-MM-dd')
   const end = format(endOfMonth(currentMonth), 'yyyy-MM-dd')
@@ -32,8 +34,7 @@ export function Expenses() {
   )
 
   function handleEdit(expense: Expense) {
-    // TODO: Open edit modal
-    console.log('Edit', expense)
+    setEditingExpense(expense)
   }
 
   function handleDelete(id: string) {
@@ -115,6 +116,13 @@ export function Expenses() {
           <p className="text-4xl mb-3">🔍</p>
           <p className="text-gray-400 text-sm">No hay gastos para este período</p>
         </div>
+      )}
+
+      {editingExpense && (
+        <ExpenseModal
+          expense={editingExpense}
+          onClose={() => setEditingExpense(null)}
+        />
       )}
     </div>
   )
