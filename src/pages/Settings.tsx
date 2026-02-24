@@ -17,6 +17,12 @@ export function Settings() {
   const [editingCat, setEditingCat] = useState<string | null>(null)
   const [catName, setCatName] = useState('')
   const [catIcon, setCatIcon] = useState('')
+  const [addingCat, setAddingCat] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatIcon, setNewCatIcon] = useState('📌')
+  const [newCatColor, setNewCatColor] = useState('#6b7280')
+
+  const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#ec4899', '#06b6d4', '#6b7280', '#f97316', '#14b8a6']
 
   async function handleSaveName() {
     if (!user || !name.trim()) return
@@ -48,6 +54,37 @@ export function Settings() {
       )
     )
     setEditingCat(null)
+  }
+
+  async function handleAddCategory() {
+    if (!newCatName.trim() || !user?.household_id) return
+    const { data, error } = await supabase
+      .from('categories')
+      .insert({ name: newCatName.trim(), icon: newCatIcon, color: newCatColor, household_id: user.household_id })
+      .select()
+      .single()
+    if (!error && data) {
+      setCategories([...categories, data])
+      setNewCatName('')
+      setNewCatIcon('📌')
+      setNewCatColor('#6b7280')
+      setAddingCat(false)
+      setMessage('Categoría creada')
+      setTimeout(() => setMessage(''), 2000)
+    }
+  }
+
+  async function handleDeleteCategory(id: string) {
+    const { count } = await supabase.from('expenses').select('id', { count: 'exact', head: true }).eq('category_id', id)
+    if (count && count > 0) {
+      setMessage('No se puede eliminar: tiene gastos asociados')
+      setTimeout(() => setMessage(''), 3000)
+      return
+    }
+    await supabase.from('categories').delete().eq('id', id)
+    setCategories(categories.filter((c) => c.id !== id))
+    setMessage('Categoría eliminada')
+    setTimeout(() => setMessage(''), 2000)
   }
 
   return (
@@ -149,9 +186,62 @@ export function Settings() {
 
       {/* Categories */}
       <div className="card p-4 mb-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-          Categorías
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+            Categorías
+          </h3>
+          <button
+            onClick={() => setAddingCat(!addingCat)}
+            className="text-emerald-500 text-sm font-medium"
+          >
+            {addingCat ? 'Cancelar' : '+ Agregar'}
+          </button>
+        </div>
+
+        {addingCat && (
+          <div className="mb-4 p-3 rounded-2xl bg-gray-50 dark:bg-gray-700 space-y-3">
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={newCatIcon}
+                onChange={(e) => setNewCatIcon(e.target.value)}
+                className="w-12 input text-center text-xl p-2"
+                maxLength={2}
+              />
+              <input
+                type="text"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="Nombre de categoría"
+                className="input flex-1 text-sm"
+              />
+            </div>
+            <div className="flex gap-1.5 flex-wrap">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setNewCatColor(c)}
+                  className={cn(
+                    'w-7 h-7 rounded-full transition-all',
+                    newCatColor === c && 'ring-2 ring-offset-2 ring-gray-400 scale-110'
+                  )}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={handleAddCategory}
+              disabled={!newCatName.trim()}
+              className={cn(
+                'w-full btn-primary text-sm py-2',
+                !newCatName.trim() && 'opacity-40'
+              )}
+            >
+              Crear categoría
+            </button>
+          </div>
+        )}
+
         <div className="space-y-2">
           {categories.map((cat) => (
             <div key={cat.id}>
@@ -182,6 +272,12 @@ export function Settings() {
                   >
                     ✗
                   </button>
+                  <button
+                    onClick={() => { handleDeleteCategory(cat.id); setEditingCat(null) }}
+                    className="text-red-400 text-xs px-1"
+                  >
+                    🗑️
+                  </button>
                 </div>
               ) : (
                 <button
@@ -192,7 +288,12 @@ export function Settings() {
                   }}
                   className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <span className="text-xl">{cat.icon}</span>
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: `${cat.color}20` }}
+                  >
+                    <span className="text-lg">{cat.icon}</span>
+                  </div>
                   <span className="text-sm text-gray-700 dark:text-gray-200">{cat.name}</span>
                   <span className="ml-auto text-xs text-gray-400">Editar</span>
                 </button>
