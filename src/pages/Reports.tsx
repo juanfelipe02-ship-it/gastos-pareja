@@ -22,9 +22,10 @@ import { es } from 'date-fns/locale'
 export function Reports() {
   const { categories, currency, user, partner } = useStore()
   const { expenses } = useExpenses()
-  const { getBudgetsForMonth, getTotalBudget } = useBudgets()
+  const { getBudgetsForMonth, getTotalBudget, getAnnualBudgetsForYear } = useBudgets()
   const [selectedMonth, setSelectedMonth] = useState(new Date())
   const [showBudgetModal, setShowBudgetModal] = useState(false)
+  const [showAnnualView, setShowAnnualView] = useState(false)
 
   const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
   const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
@@ -97,6 +98,40 @@ export function Reports() {
       })
       .filter((item) => item.actual > 0 || item.budget > 0)
   }, [categories, monthExpenses, monthBudgets])
+
+  // Annual budget comparison (year-to-date with rollover)
+  const annualComparison = useMemo(() => {
+    const year = selectedMonth.getFullYear()
+    const yearBudgets = getAnnualBudgetsForYear(year)
+    if (yearBudgets.length === 0) return []
+
+    const monthsElapsed = selectedMonth.getMonth() + 1
+    const yearStart = `${year}-01-01`
+    const ytdExpenses = expenses.filter((e) => e.date >= yearStart && e.date <= end)
+
+    return yearBudgets.map((ab) => {
+      const cat = categories.find((c) => c.id === ab.category_id)
+      const monthlyAllocation = ab.amount / 12
+      const ytdBudget = monthlyAllocation * monthsElapsed
+      const ytdActual = ytdExpenses
+        .filter((e) => e.category_id === ab.category_id)
+        .reduce((sum, e) => sum + e.amount, 0)
+      const margin = ytdBudget - ytdActual
+
+      return {
+        categoryId: ab.category_id,
+        name: cat?.name || 'Otro',
+        icon: cat?.icon || '📦',
+        color: cat?.color || '#6b7280',
+        annualBudget: ab.amount,
+        monthlyAllocation,
+        ytdBudget,
+        ytdActual,
+        margin,
+        pctUsed: ytdBudget > 0 ? Math.round((ytdActual / ytdBudget) * 100) : 0,
+      }
+    })
+  }, [selectedMonth, expenses, categories, getAnnualBudgetsForYear, end])
 
   function exportCSV() {
     const header = 'Fecha,Descripción,Categoría,Monto,Pagó,División\n'
@@ -172,7 +207,7 @@ export function Reports() {
       </div>
 
       {/* Budget vs Actual */}
-      {monthBudgets.length > 0 ? (
+      {(monthBudgets.length > 0 || annualComparison.length > 0) ? (
         <div className="card p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">
@@ -185,35 +220,87 @@ export function Reports() {
               Editar
             </button>
           </div>
-          <div className="space-y-3">
-            {budgetVsActual
-              .filter((item) => item.budget > 0)
-              .map((item) => (
-                <div key={item.categoryId}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-gray-600 dark:text-gray-300">
-                      {item.icon} {item.name}
-                    </span>
-                    <span className="text-xs tabular-nums text-gray-500">
-                      {formatCurrency(item.actual, currency)} / {formatCurrency(item.budget, currency)}
-                    </span>
+          {monthBudgets.length > 0 && (
+            <div className="space-y-3">
+              {budgetVsActual
+                .filter((item) => item.budget > 0)
+                .map((item) => (
+                  <div key={item.categoryId}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {item.icon} {item.name}
+                      </span>
+                      <span className="text-xs tabular-nums text-gray-500">
+                        {formatCurrency(item.actual, currency)} / {formatCurrency(item.budget, currency)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className={cn(
+                          'h-1.5 rounded-full transition-all',
+                          item.percentage > 100
+                            ? 'bg-red-500'
+                            : item.percentage > 80
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        )}
+                        style={{ width: `${Math.min(100, item.percentage)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                    <div
-                      className={cn(
-                        'h-1.5 rounded-full transition-all',
-                        item.percentage > 100
-                          ? 'bg-red-500'
-                          : item.percentage > 80
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
-                      )}
-                      style={{ width: `${Math.min(100, item.percentage)}%` }}
-                    />
+                ))}
+            </div>
+          )}
+          {/* Annual comparison toggle */}
+          {annualComparison.length > 0 && (
+            <>
+              <button
+                onClick={() => setShowAnnualView((v) => !v)}
+                className="w-full flex items-center justify-center gap-1 pt-3 mt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-400 hover:text-emerald-500 transition-colors"
+              >
+                <span className="text-[10px]">{showAnnualView ? '▼' : '▶'}</span>
+                <span>Comparación anual {selectedMonth.getFullYear()}</span>
+              </button>
+              {showAnnualView && (
+                <div className="mt-3 space-y-3">
+                  {annualComparison.map((item) => (
+                    <div key={item.categoryId}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-600 dark:text-gray-300">
+                          {item.icon} {item.name}
+                        </span>
+                        <span className={cn(
+                          'text-xs font-medium tabular-nums',
+                          item.margin >= 0 ? 'text-emerald-500' : 'text-red-500'
+                        )}>
+                          {item.margin >= 0 ? '+' : ''}{formatCurrency(Math.abs(item.margin), currency)} margen
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                        <span>YTD: {formatCurrency(item.ytdActual, currency)} / {formatCurrency(item.ytdBudget, currency)}</span>
+                        <span>~{formatCurrency(Math.round(item.monthlyAllocation), currency)}/mes</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                        <div
+                          className={cn(
+                            'h-1.5 rounded-full transition-all',
+                            item.pctUsed > 100 ? 'bg-red-500' : item.pctUsed > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                          )}
+                          style={{ width: `${Math.min(100, item.pctUsed)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <span className="text-gray-500 font-medium">Total anual</span>
+                    <span className="font-bold text-emerald-600">
+                      {formatCurrency(annualComparison.reduce((s, i) => s + i.annualBudget, 0), currency)}
+                    </span>
                   </div>
                 </div>
-              ))}
-          </div>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <button

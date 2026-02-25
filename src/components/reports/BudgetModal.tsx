@@ -11,13 +11,16 @@ interface Props {
 
 export function BudgetModal({ month, onClose }: Props) {
   const { categories, currency } = useStore()
-  const { getBudgetsForMonth, setBudget, copyBudgets } = useBudgets()
+  const { getBudgetsForMonth, setBudget, copyBudgets, getAnnualBudgetsForYear, setAnnualBudgetAmount } = useBudgets()
 
   const monthBudgets = getBudgetsForMonth(month)
   const prevMonthBudgets = getBudgetsForMonth(subMonths(month, 1))
+  const year = month.getFullYear()
+  const yearBudgets = getAnnualBudgetsForYear(year)
 
-  // Local state for input values: categoryId → amount string
+  const [tab, setTab] = useState<'monthly' | 'annual'>('monthly')
   const [amounts, setAmounts] = useState<Record<string, string>>({})
+  const [annualAmounts, setAnnualAmounts] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -27,17 +30,30 @@ export function BudgetModal({ month, onClose }: Props) {
       initial[cat.id] = existing ? String(existing.amount) : ''
     }
     setAmounts(initial)
+
+    const initialAnnual: Record<string, string> = {}
+    for (const cat of categories) {
+      const existing = yearBudgets.find((b) => b.category_id === cat.id)
+      initialAnnual[cat.id] = existing ? String(existing.amount) : ''
+    }
+    setAnnualAmounts(initialAnnual)
   }, [])
 
   const total = Object.values(amounts).reduce((sum, v) => sum + (parseFloat(v) || 0), 0)
+  const annualTotal = Object.values(annualAmounts).reduce((sum, v) => sum + (parseFloat(v) || 0), 0)
 
   async function handleSave() {
     setSaving(true)
     try {
-      for (const cat of categories) {
-        const val = parseFloat(amounts[cat.id] || '0')
-        if (val > 0) {
-          await setBudget(cat.id, month, val)
+      if (tab === 'monthly') {
+        for (const cat of categories) {
+          const val = parseFloat(amounts[cat.id] || '0')
+          if (val > 0) await setBudget(cat.id, month, val)
+        }
+      } else {
+        for (const cat of categories) {
+          const val = parseFloat(annualAmounts[cat.id] || '0')
+          if (val > 0) await setAnnualBudgetAmount(cat.id, year, val)
         }
       }
       onClose()
@@ -55,6 +71,10 @@ export function BudgetModal({ month, onClose }: Props) {
     setAmounts(copied)
   }
 
+  const currentAmounts = tab === 'monthly' ? amounts : annualAmounts
+  const setCurrentAmounts = tab === 'monthly' ? setAmounts : setAnnualAmounts
+  const currentTotal = tab === 'monthly' ? total : annualTotal
+
   return (
     <div className="bottom-sheet" onClick={onClose}>
       <div className="bottom-sheet-overlay" />
@@ -70,11 +90,34 @@ export function BudgetModal({ month, onClose }: Props) {
           <h2 className="text-lg font-semibold text-center text-gray-700 dark:text-gray-200 mb-1">
             Presupuesto
           </h2>
-          <p className="text-sm text-center text-gray-400 mb-4 capitalize">
-            {formatMonthYear(month)}
+
+          {/* Tabs */}
+          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1 mb-4">
+            <button
+              onClick={() => setTab('monthly')}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-sm font-medium transition-all',
+                tab === 'monthly' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'
+              )}
+            >
+              Mensual
+            </button>
+            <button
+              onClick={() => setTab('annual')}
+              className={cn(
+                'flex-1 py-2 rounded-lg text-sm font-medium transition-all',
+                tab === 'annual' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500'
+              )}
+            >
+              Anual {year}
+            </button>
+          </div>
+
+          <p className="text-xs text-center text-gray-400 mb-3">
+            {tab === 'monthly' ? formatMonthYear(month) : `Presupuesto anualizado ${year} (÷12 por mes)`}
           </p>
 
-          {prevMonthBudgets.length > 0 && (
+          {tab === 'monthly' && prevMonthBudgets.length > 0 && (
             <button
               onClick={handleCopyPrevious}
               className="w-full mb-4 py-2.5 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-600
@@ -97,16 +140,21 @@ export function BudgetModal({ month, onClose }: Props) {
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
                     {cat.name}
                   </p>
+                  {tab === 'annual' && currentAmounts[cat.id] && (
+                    <p className="text-[10px] text-gray-400">
+                      ~{formatCurrency(Math.round(parseFloat(currentAmounts[cat.id]) / 12), currency)}/mes
+                    </p>
+                  )}
                 </div>
                 <div className="w-32 flex-shrink-0">
                   <input
                     type="text"
                     inputMode="numeric"
-                    placeholder="$0"
-                    value={amounts[cat.id] || ''}
+                    placeholder={tab === 'annual' ? '$0 /año' : '$0'}
+                    value={currentAmounts[cat.id] || ''}
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9]/g, '')
-                      setAmounts((prev) => ({ ...prev, [cat.id]: val }))
+                      setCurrentAmounts((prev) => ({ ...prev, [cat.id]: val }))
                     }}
                     className="w-full text-right text-sm font-medium px-3 py-2 rounded-xl
                                bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white
@@ -121,12 +169,17 @@ export function BudgetModal({ month, onClose }: Props) {
           {/* Total */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-              Total presupuesto
+              {tab === 'monthly' ? 'Total mensual' : 'Total anual'}
             </span>
             <span className="text-lg font-bold text-emerald-600">
-              {formatCurrency(total, currency)}
+              {formatCurrency(currentTotal, currency)}
             </span>
           </div>
+          {tab === 'annual' && annualTotal > 0 && (
+            <p className="text-xs text-gray-400 text-right">
+              ~{formatCurrency(Math.round(annualTotal / 12), currency)}/mes
+            </p>
+          )}
 
           {/* Buttons */}
           <div className="flex gap-3 mt-4">
@@ -138,10 +191,10 @@ export function BudgetModal({ month, onClose }: Props) {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving || total === 0}
+              disabled={saving || currentTotal === 0}
               className={cn(
                 'flex-1 py-3 rounded-2xl bg-emerald-500 text-white font-semibold text-sm',
-                (saving || total === 0) && 'opacity-40 cursor-not-allowed'
+                (saving || currentTotal === 0) && 'opacity-40 cursor-not-allowed'
               )}
             >
               {saving ? 'Guardando...' : 'Guardar'}
